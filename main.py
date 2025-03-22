@@ -1,6 +1,7 @@
 import logging
 from telegram import Update, InputFile
 from telegram.ext import Application, CommandHandler, CallbackContext
+from data import getVerseData
 import datetime
 
 import os
@@ -33,20 +34,35 @@ async def verse(update: Update, context: CallbackContext) -> None:
         chapter = context.args[0]
         verse = context.args[1]
 
-        # Here you will fetch the verse and audio based on chapter and verse
-        # You will replace this with your logic for fetching Bhagavad Gita content
-        verse_text = f"Verse {verse} of Chapter {chapter} from the Bhagavad Gita.\nThis is a placeholder text."  # Placeholder
-        audio_file = "path_to_audio.mp3"  # You will handle audio generation separately
+        verseData = getVerseData(chapter=chapter, verse=verse)
 
-        # Send markdown message
-        await update.message.reply_text(f"*Chapter {chapter}, Verse {verse}*\n\n{verse_text}", parse_mode="Markdown")
+        original_verse = f"**{verseData['originalVerse']}**"
+        transliteration = verseData["transliteration"]
+        translation = verseData["translation"]
+        commentary = verseData["commentary"]
+        word_meanings = verseData["wordMeanings"]
 
-        # Send the audio file
-        with open(audio_file, 'rb') as audio:
-            await update.message.reply_audio(audio)
+        message = (
+            f"**Original Verse:**\n"
+            f"{original_verse}\n\n"
+            f"**Transliteration:**\n"
+            f"{transliteration}\n\n"
+            f"**Translation:**\n"
+            f"{translation}\n\n"
+            f"**Commentary:**\n"
+            f"{commentary}\n\n"
+            f"**Word Meanings:**\n"
+            f"{word_meanings}"
+        )
+
+        await update.message.reply_text(message, parse_mode="Markdown")
 
     except (IndexError, ValueError):
         await update.message.reply_text("Usage: /verse <chapter> <verse>")
+
+    except Exception as VerseError:
+        logger.error(f"There was an unexpected error for {chapter}, {verse}.")
+        await update.message.reply_text("I faced a unexpected error. Try again after some time.")
 
 # Handler for the /send command
 async def send(update: Update, context: CallbackContext) -> None:
