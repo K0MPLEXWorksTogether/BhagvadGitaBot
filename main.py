@@ -1,7 +1,7 @@
 import logging
 from telegram import Update, InputFile
 from telegram.ext import Application, CommandHandler, CallbackContext
-from data import getVerseData
+from data import getVerseData, getAudioData, deleteAudioFile
 import datetime
 
 import os
@@ -35,6 +35,7 @@ async def verse(update: Update, context: CallbackContext) -> None:
         verse = context.args[1]
 
         verseData = getVerseData(chapter=chapter, verse=verse)
+        audioData = getAudioData(chapter=chapter, verse=verse)
 
         original_verse = f"**{verseData['originalVerse']}**"
         transliteration = verseData["transliteration"]
@@ -55,7 +56,17 @@ async def verse(update: Update, context: CallbackContext) -> None:
             f"{word_meanings}"
         )
 
+        audioFilePath = os.path.join(audioData, f"{chapter}-{verse}.mp3")
+
         await update.message.reply_text(message, parse_mode="Markdown")
+
+        if os.path.exists(audioFilePath):
+            with open(audioFilePath, "rb") as audioFile:
+                await update.message.reply_audio(audio=InputFile(audioFile), caption=f"Audio Recital For Chapter {chapter}, Verse {verse}.")
+        else:
+            await update.message.reply_text(f"Sorry, the audio for Chapter {chapter}, Verse {verse} is not available.")
+
+        deleteAudioFile(chapter, verse)
 
     except (IndexError, ValueError):
         await update.message.reply_text("Usage: /verse <chapter> <verse>")
