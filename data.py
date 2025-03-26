@@ -48,11 +48,14 @@ def getAudioData(chapter: int, verse: int) -> str:
         print("Failed To Retrieve Audio: ", getAudioError)
 
 def deleteAudioFile(chapter: int, verse: int) -> None:
-    TempDir = os.path.join(PROJECT_ROOT, "temp_audio_files")
-    filePath = os.path.join(TempDir, f"{chapter}-{verse}.mp3")
+    try: 
+        TempDir = os.path.join(PROJECT_ROOT, "temp_audio_files")
+        filePath = os.path.join(TempDir, f"{chapter}-{verse}.mp3")
 
-    if os.path.exists(filePath):
-        os.remove(filePath)
-        print(f"Audio file {filePath} deleted.")
-    else:
+        if os.path.exists(filePath):
+            os.remove(filePath)
+            print(f"Audio file {filePath} deleted.")
+        else:
+            print(f"No audio file found for Chapter {chapter}, Verse {verse}.")
+    except FileNotFoundError:
         print(f"No audio file found for Chapter {chapter}, Verse {verse}.")

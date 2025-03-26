@@ -12,7 +12,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Handler for the /start command
 async def start(update: Update, context: CallbackContext) -> None:
     """Sends a greeting and explains the bot functionality"""
     message = (
@@ -26,16 +25,17 @@ async def start(update: Update, context: CallbackContext) -> None:
     )
     await update.message.reply_text(message)
 
-# Handler for the /verse command
+
 async def verse(update: Update, context: CallbackContext) -> None:
     """Fetches and returns a verse from the Bhagavad Gita"""
     try:
-        # Extract chapter and verse from the command arguments
         chapter = context.args[0]
         verse = context.args[1]
 
         verseData = getVerseData(chapter=chapter, verse=verse)
+        print(f"Got verse data for {chapter}, {verse}.")
         audioData = getAudioData(chapter=chapter, verse=verse)
+        print(f"Got audio data for {chapter}, {verse}.")
 
         original_verse = f"**{verseData['originalVerse']}**"
         transliteration = verseData["transliteration"]
@@ -56,55 +56,58 @@ async def verse(update: Update, context: CallbackContext) -> None:
             f"{word_meanings}"
         )
 
+        if len(message) > 4096:
+            while len(message) > 4096:
+                await update.message.reply_text(message[:4096])
+                message = message[4096:]
+            await update.message.reply_text(message)  # Send the remaining part of the message
+        else:
+            await update.message.reply_text(message, parse_mode="Markdown")
+        
+        
+        print(f"Sent verse data for {chapter}, {verse}.")
+
         audioFilePath = os.path.join(audioData, f"{chapter}-{verse}.mp3")
-
-        await update.message.reply_text(message, parse_mode="Markdown")
-
         if os.path.exists(audioFilePath):
             with open(audioFilePath, "rb") as audioFile:
                 await update.message.reply_audio(audio=InputFile(audioFile), caption=f"Audio Recital For Chapter {chapter}, Verse {verse}.")
+                print(f"sent audio data for {chapter}, {verse}.")
         else:
             await update.message.reply_text(f"Sorry, the audio for Chapter {chapter}, Verse {verse} is not available.")
-
-        deleteAudioFile(chapter, verse)
+            print(f"Could not send audio data for {chapter}, {verse}.")
 
     except (IndexError, ValueError):
         await update.message.reply_text("Usage: /verse <chapter> <verse>")
+        logger.error(f"There was a usage error for {chapter}, {verse}.")
 
     except Exception as VerseError:
-        logger.error(f"There was an unexpected error for {chapter}, {verse}.")
-        await update.message.reply_text("I faced a unexpected error. Try again after some time.")
+        logger.error(f"There was an unexpected error for {chapter}, {verse}: {VerseError}")
+        await update.message.reply_text("I faced an unexpected error. Try again after some time.")
 
-# Handler for the /send command
+    deleteAudioFile(chapter, verse)
+
 async def send(update: Update, context: CallbackContext) -> None:
     """Processes the order and time for scheduling"""
     try:
-        # Extract order and time from the command arguments
         order = context.args[0]
         time_str = context.args[1]
 
-        # Check if the order is either 'random' or 'sequential'
         if order not in ['random', 'sequential']:
             await update.message.reply_text("Order must be either 'random' or 'sequential'.")
             return
         
-        # Parse the time into a 24-hour format (this part is just for demonstration)
         try:
             time_obj = datetime.datetime.strptime(time_str, "%H:%M")
         except ValueError:
             await update.message.reply_text("Time should be in 24-hour format (HH:MM).")
             return
         
-        # Acknowledge the request (you will handle database storage and logic)
         await update.message.reply_text(f"Request to schedule {order} order at {time_str} received.")
-
-        # Add to your database here
-        # Example: save_order_to_database(order, time_obj)
 
     except (IndexError, ValueError):
         await update.message.reply_text("Usage: /send <order> <time>")
 
-# Error handler for the bot
+
 async def error(update: Update, context: CallbackContext) -> None:
     """Logs errors caused by updates"""
     logger.warning(f"Update {update} caused error {context.error}")
@@ -114,16 +117,12 @@ def main() -> None:
     # Replace 'YOUR_TOKEN' with your bot's token
     application = Application.builder().token(os.getenv("BOT_TOKEN")).build()
 
-    # Register the commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("verse", verse))
     application.add_handler(CommandHandler("send", send))
 
-    # Log all errors
     application.add_error_handler(error)
-
-    # Start the bot
-    application.run_polling()
+    application.run_polling(poll_interval=5)
 
 if __name__ == '__main__':
     main()
