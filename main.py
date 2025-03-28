@@ -20,7 +20,7 @@ async def start(update: Update, context: CallbackContext) -> None:
         "Here are the commands you can use:\n"
         "/start - Greet the user and explain bot functionality.\n"
         "/verse <chapter> <verse> - Get a specific verse from the Bhagavad Gita.\n"
-        "/dailt <order> <time> - Schedule an action based on your preferences.\n\n"
+        "/daily <order> <time> - Schedule an action based on your preferences.\n\n"
         "To get a verse, use /verse followed by the chapter and verse numbers.\n"
         "To schedule something, use /daily with either 'random' or 'sequential' order and a time."
     )
@@ -97,13 +97,14 @@ async def daily(update: Update, context: CallbackContext) -> None:
             return
         
         try:
-            time = datetime.datetime.strftime(time_str, "%H:%M")
+            time_obj = datetime.datetime.strptime(time_str, "%H:%M")
+            time = time_obj.strftime("%H:%M")
         except ValueError:
             await update.message.reply_text("Time should be in 24-hour format (HH:MM).")
             return
 
-        username = update.message.from_user
-        chatId = update.message.chat_id
+        username = update.message.from_user.username
+        chatId = str(update.message.chat_id)
 
         if query(username) == "does not exist":
             create(username=username, usertype=order, chatID=chatId, time=time)
