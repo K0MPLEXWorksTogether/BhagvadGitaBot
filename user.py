@@ -1,77 +1,85 @@
-import requests
-import json 
+import aiohttp
+import asyncio
 import os
 
 from dotenv import load_dotenv
-from requests.auth import HTTPBasicAuth
 load_dotenv()
 
 URL = "https://bhagvad-gita-db.vercel.app/"
-AUTH_OBJECT = HTTPBasicAuth(os.getenv("USERNAME"), os.getenv("PASSWORD"))
+USERNAME = os.getenv("USERNAME")
+PASSWORD = os.getenv("PASSWORD")
 
-def query(username: str) -> str:
+async def query(session, username: str) -> str:
     try:
-        params = {
-            "username": username
-        }
+        params = {"username": username}
+        auth = aiohttp.BasicAuth(USERNAME, PASSWORD)
 
-        response = requests.get(f"{URL}/query", params=params, auth=AUTH_OBJECT)
-        if response.status_code == 200:
-            return response.json()["usertype"]
-        else:
-            print(f"Failed: {response.status_code} - {response.text}")
-            return ""
-    except requests.exceptions.RequestException as RequestException:
-        print("Request Failed: ", RequestException)
-        return False
-    except Exception as QueryError:
-        print("Failed To Query Database: ", QueryError)
+        async with session.get(f"{URL}/query", params=params, auth=auth) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("usertype", "")
+            else:
+                print(f"Failed: {response.status} - {await response.text()}")
+                return ""
+        
+    except aiohttp.ClientError as RequestError:
+        print("Request Failed: ", RequestError)
+        return ""
+    except Exception as Error:
+        print("Failed To Query: ", Error)
         return ""
 
-def create(username: str, usertype: str, chatID: str, time: str) -> bool:
+async def create(session, username: str, usertype: str, chatID: str, time: str) -> bool:
     try:
         args = {
             "username": username,
             "usertype": usertype,
             "chatID": chatID,
-            "time": time,
+            "time": time
         }
+        auth = aiohttp.BasicAuth(USERNAME, PASSWORD)
 
-        response = requests.post(f"{URL}/create", json=args, auth=AUTH_OBJECT)
-        if response.status_code == 200:
-            return True
-        else:
-            print(f"Failed: {response.status_code} - {response.text}")
-            return False
-    except requests.exceptions.RequestException as RequestException:
-        print("Request Failed: ", RequestException)
+        async with session.post(f"{URL}/create", json=args, auth=auth) as response:
+            if response.status == 200:
+                return True
+            else:
+                print(f"Failed: {response.status} - {await response.text()}")
+                return False
+    except aiohttp.ClientError as e:
+        print("Request Failed:", e)
         return False
-    except Exception as CreateError:
-        print("Failed To Create User: ", CreateError)
+    except Exception as e:
+        print("Failed To Create User:", e)
         return False
 
-def delete(username: str, usertype: str) -> bool:
+async def delete(session, username: str, usertype: str) -> bool:
     try:
         args = {
             "username": username,
             "usertype": usertype
         }
+        auth = aiohttp.BasicAuth(USERNAME, PASSWORD)
 
-        response = requests.delete(f"{URL}/delete", json=args, auth=AUTH_OBJECT)
-        if response.status_code == 200:
-            return True
+        async with session.delete(f"{URL}/delete", json=args, auth=auth) as response:
+            if response.status == 200:
+                return True
+            else:
+                print(f"Failed: {response.status} - {await response.text()}")
+                return False
+    except aiohttp.ClientError as e:
+        print("Request Failed:", e)
+        return False
+    except Exception as e:
+        print("Failed To Delete User:", e)
+        return False
+
+async def main() -> None:
+    async with aiohttp.ClientSession() as session:
+        success = await delete(session=session, username="queryTestSeq", usertype="random")
+        if success:
+            print("Returned Result:", success)
         else:
-            print(f"Failed: {response.status_code} - {response.text}")
-            return False
-    except requests.exceptions.RequestException as RequestException:
-        print("Request Failed: ", RequestException)
-        return False
-    except Exception as CreateError:
-        print("Failed To Create User: ", CreateError)
-        return False
+            print("Failed To Retrieve Data.")
 
-
-delete(
-    username="Abhiram",
-    usertype="sequential"
-)
+if __name__ == "__main__":
+    asyncio.run(main())

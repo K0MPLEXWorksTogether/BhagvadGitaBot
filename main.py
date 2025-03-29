@@ -6,6 +6,7 @@ from user import query, create, delete
 import datetime
 
 import os
+import aiohttp
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -89,6 +90,10 @@ async def verse(update: Update, context: CallbackContext) -> None:
 async def daily(update: Update, context: CallbackContext) -> None:
     """Processes the order and time for scheduling"""
     try:
+        if len(context.args) != 2:
+            await update.message.reply_text("Usage: /daily <order> <time>")
+            return
+
         order = context.args[0]
         time_str = context.args[1]
 
@@ -103,25 +108,43 @@ async def daily(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text("Time should be in 24-hour format (HH:MM).")
             return
 
+
+        if update.message is None:
+            await update.message.reply_text("Error: No message found in the update.")
+            return  
+
         username = update.message.from_user.username
         chatId = str(update.message.chat_id)
 
-        if query(username) == "does not exist":
-            create(username=username, usertype=order, chatID=chatId, time=time)
-        elif query(username) == "random":
-            delete(username=username, usertype="random")
-            create(username=username, usertype=order, chatID=chatId, time=time)
-        elif query(username) == "sequential":
-            delete(username=username, usertype="sequential")
-            create(username=username, usertype=order, chatID=chatId, time=time)
-        else:
-            await update.message.reply_text(f"Request to schedule verse in {order} failed due to an internal server error. Try again.")
-        
-        await update.message.reply_text(f"Request to schedule {order} order at {time_str} received.")
+        async with aiohttp.ClientSession() as session:
+            usertype = await query(session, username)
+
+            if usertype == "does not exist":
+                success = await create(session, username=username, usertype=order, chatID=chatId, time=time)
+                if not success:
+                    await update.message.reply_text("Failed to create scheduling. Try again later.")
+                    return
+            elif usertype in ["random", "sequential"]:
+                deleteSuccess = await delete(session, username=username, usertype=usertype)
+                if not deleteSuccess:
+                    await update.message.reply_text("Failed to delete the previous schedule. Try again later.")
+                    return 
+
+                create_success = await create(session, username=username, usertype=order, chatID=chatId, time=time)
+                if not create_success:
+                    await update.message.reply_text("Failed to create new scheduling. Try again later.")
+                    return
+            else:
+                await update.message.reply_text(f"Request to schedule verse in {order} failed due to an internal server error. Try again.")
+                return
+            
+            await update.message.reply_text(f"Request to schedule {order} order at {time_str} received.")
 
     except (IndexError, ValueError):
         await update.message.reply_text("Usage: /daily <order> <time>")
-
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        await update.message.reply_text("An unexpected error occurred. Please try again later.")
 
 async def error(update: Update, context: CallbackContext) -> None:
     """Logs errors caused by updates"""
